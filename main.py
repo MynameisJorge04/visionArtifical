@@ -11,128 +11,145 @@ import os
 
 global var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo, var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX, var_FP_BorderY
 
-_Lambda = 255
-_Gamma = 0.5
+LAMBDA = 255
+GAMMA = 0.5
+L = 18
 
 
-# Identidad
-def FP_Iden(M1):  # by columns
-    high = M1.shape[0]  # r
-    width = M1.shape[1]  # c
-    M2 = np.zeros([high, width, 3])
-    for k in range(3):  # canales
-        for i in range(high):
-            for j in range(width):
-                M2[i][j][k] = M1[i][j][k]
-
-    # print M2
-    return M2
+# Identity filter - 1
+def identity_filter(matrix):
+    return matrix.copy()
 
 
-# Negativo
-def FP_Neg(M1):
-    high = M1.shape[0]  # r
-    width = M1.shape[1]  # c
-    M2 = np.zeros([high, width, 3])
-    print('r=', len(M2))
-    print('c=', len(M2[0]))
-    for k in range(3):  # canales
-        for i in range(high):
-            for j in range(width):
-                M2[i, j, k] = _Lambda - M1[i, j, k]
-
-    # print M2
-    return M2
+# Filtro negativo
+def negative_filter(matrix):
+    return LAMBDA - matrix
 
 
-def FP_Gamma(M1, gg):
-    high = M1.shape[0]
-    width = M1.shape[1]
-    M2 = np.zeros([high, width, 3])
-    for i in range(high):
-        for j in range(width):
-            for k in range(3):
-                M2[i, j, k] = _Lambda * pow(M1[i, j, k] / _Lambda, gg)
+# Filtro Gris (R+G+B)/3
 
-    return M2
+def grey_filter(matrix):
+    grey = np.mean(matrix, axis=-1)
 
+    grey = np.expand_dims(grey, axis=-1)
+    grey = np.repeat(grey, 3, axis=-1)
 
-def FP_Logaritmo(M1, gg):
-    high = M1.shape[0]
-    width = M1.shape[1]
-    M2 = np.zeros([high, width, 3])
-    fact = _Lambda / (np.log(_Lambda + 1))
-    for i in range(high):
-        for j in range(width):
-            for k in range(3):
-                M2[i, j, k] = fact * np.log(M1[i, j, k] + 1)
-
-    return M2
+    return grey
 
 
-def FP_Sin(M1):
-    high = M1.shape[0]
-    width = M1.shape[1]
-    M2 = np.zeros([high, width, 3])
-    fact = _Lambda / (np.log(_Lambda + 1))
-    for i in range(high):
-        for j in range(width):
-            for k in range(3):
-                M2[i, j, k] = _Lambda * np.sin(M1[i, j, k] * np.pi / (2 * _Lambda))
-
-    return M2
+# Filtro gamma
+def gamma_filter(matrix, gamma):
+    """
+    Aplica el filtro gamma a la matriz de entrada.
+    """
+    return LAMBDA * np.power(matrix / LAMBDA, gamma)
 
 
-def FP_Cosnoidal(M1, _L):
-    high = M1.shape[0]
-    width = M1.shape[1]
-    M2 = np.zeros([high, width, 3])
-    fact = _Lambda / (np.log(_Lambda + 1))
-    for i in range(high):
-        for j in range(width):
-            for k in range(3):
-                M2[i, j, k] = _L * (1 - np.cos(M1[i, j, k] * np.pi / (2 * _L)))
-
-    return M2
+# Filtro rango dinámico
+def logarithmic_filter(matrix):
+    """
+    Aplica el filtro logarítmico a la matriz de entrada.
+    """
+    factor = LAMBDA / np.log(LAMBDA + 1)
+    return factor * np.log(matrix + 1e-6)  # Agrega un valor constante pequeño para prevenir la división por cero
 
 
-def FP_BorderX(M1):
-    high = M1.shape[0]
-    width = M1.shape[1]
+# Filtro rango dinámico parametrizado
+def dynamic_range_filter(matrix, alpha):
+    """
+    Aplica un filtro de rango dinámico a la matriz de entrada.
+    El filtro comprime el rango dinámico de la matriz, realzando detalles y contraste.
+    """
+    max_val = np.max(matrix)
+    factor = (max_val / (1 - alpha)) ** alpha
+    return factor * (matrix ** alpha)
+
+
+# Filtro seno
+def sine_filter(matrix):
+    """
+    Aplica el filtro seno a la matriz de entrada.
+    """
+    return LAMBDA * np.sin(matrix * np.pi / (2 * LAMBDA))
+
+
+# Filtro coseno
+def cosine_filter(matrix, lamda):
+    """
+    Aplica el filtro coseno a la matriz de entrada.
+    """
+    return lamda * (1 - np.cos(matrix * np.pi / (2 * lamda)))
+
+
+# Filtro exponencial
+def exponential_filter(matrix, gamma):
+    """
+    Aplica el filtro exponencial a la matriz de entrada.
+    """
+    return LAMBDA * (1 - np.exp(-matrix / (LAMBDA * gamma)))
+
+
+# Filtro sigmoidal seno
+def sigmoid_sine_filter(matrix, a=2, b=2):
+    """
+    Aplica el filtro sigmoidal seno a la matriz de entrada.
+    """
+    return LAMBDA / (1 + np.exp(-a * (matrix - LAMBDA / 2))) * np.sin(b * matrix)
+
+
+# Filtro sigmoidal tangente hiperbólica
+def hyperbolic_tangent_sigmoid_filter(matrix, a=1, b=1):
+    """
+    Aplica el filtro de tangente hiperbólica sigmoidal a la matriz de entrada.
+    """
+    return np.tanh(a * matrix) * (1 / (1 + np.exp(-b * matrix)))
+
+
+# Función para obtener los bordes en el eje Y de una matriz
+
+def FP_BorderX(matrix):
+    high = matrix.shape[0]
+    width = matrix.shape[1]
     M2 = np.zeros([high, width, 3])
     for i in range(high):
         for j in range(width - 1):
             for k in range(3):
-                M2[i][j][k] = abs(M1[i][j + 1][k] - M1[i, j, k])
+                M2[i][j][k] = abs(matrix[i][j + 1][k] - matrix[i, j, k])
 
     return M2
 
 
-def FP_BorderY(M1):
-    high = M1.shape[0]
-    width = M1.shape[1]
+# Función para obtener los bordes en el eje Y de una matriz
+
+def FP_BorderY(matrix):
+    high = matrix.shape[0]
+    width = matrix.shape[1]
     M2 = np.zeros([high, width, 3])
     for i in range(high - 1):
         for j in range(width):
             for k in range(3):
-                M2[i][j][k] = abs(M1[i + 1][j][k] - M1[i, j, k])
+                M2[i][j][k] = abs(matrix[i + 1][j][k] - matrix[i, j, k])
 
     return M2
 
-def grey_filter2(M1):
-    high = M1.shape[0]
-    width = M1.shape[1]
-    M2 = np.zeros([high, width, 3])
-    for i in range(high):
-        for j in range(width):
-            for k in range(3):
-                M2[i, j, k] = np.mean(M1[i, j])
-    return M2
 
+# Función para obtener los bordes en el eje Y de una matriz
 
+def ecualizate_histogram(matrix):
+    """
+    Función para obtener los bordes en el eje Y de una matriz
+    """
+    # Calcular el histograma de la matriz de entrada
+    hist, bins = np.histogram(matrix.flatten(), 256, [0, 256])
 
+    # Calcular el histograma de la matriz de entrada
+    cdf = hist.cumsum()
 
+    cdf_normalized = cdf * hist.max() / cdf.max()
 
+    equalized_matrix = np.interp(matrix.flatten(), bins[:-1], cdf_normalized).reshape(matrix.shape)
+
+    return equalized_matrix.astype(np.uint8)
 
 
 def read():
@@ -142,6 +159,7 @@ def read():
     ventana = tk.Tk()
 
     # Crear la variable para almacenar el valor de la casilla de verificación
+    var_FP_Identy = tk.BooleanVar()
     var_FP_Neg = tk.BooleanVar()
     var_FP_Gamma = tk.BooleanVar()
     var_FP_Logaritmo = tk.BooleanVar()
@@ -149,37 +167,163 @@ def read():
     var_FP_Cosnoidal = tk.BooleanVar()
     var_FP_BorderX = tk.BooleanVar()
     var_FP_BorderY = tk.BooleanVar()
+    var_FP_ecualizate_histogram = tk.BooleanVar()
+    var_FP_grey_filter = tk.BooleanVar()
+    var_FP_exponential_filter = tk.BooleanVar()
+    var_FP_sigmoid_sine_filter = tk.BooleanVar()
+    var_FP_hyperbolic_tangent_sigmoid_filter = tk.BooleanVar()
 
     # Crear el estilo para los checkbox
     estilo_checkbox = ttk.Style()
     estilo_checkbox.configure("TCheckbutton", background="#99cceb", font=("Arial", 12), borderwidth=2, relief="groove")
 
     # Crear los checkbox
+    checkbutton_FP_Identy = ttk.Checkbutton(ventana, text="Aplica FP_Identy", variable=var_FP_Identy, style="TCheckbutton",
+                                            command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo,
+                                                                            var_FP_Sin, var_FP_Cosnoidal,
+                                                                            var_FP_BorderX, var_FP_BorderY,
+                                                                            var_FP_Identy, var_FP_ecualizate_histogram,
+                                                                            var_FP_grey_filter,
+                                                                            var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                            var_FP_sigmoid_sine_filter))
     checkbutton_FP_Neg = ttk.Checkbutton(ventana, text="Aplica FP_Neg", variable=var_FP_Neg, style="TCheckbutton",
-                                         command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo, var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX, var_FP_BorderY))
+                                         command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo,
+                                                                         var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX,
+                                                                         var_FP_BorderY, var_FP_Identy,
+                                                                         var_FP_ecualizate_histogram,
+                                                                         var_FP_grey_filter,
+                                                                         var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                         var_FP_sigmoid_sine_filter))
+    checkbutton_FP_grey_filter = ttk.Checkbutton(ventana, text="Aplica grey_filter", variable=var_FP_grey_filter,
+                                                 style="TCheckbutton",
+                                                 command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma,
+                                                                                 var_FP_Logaritmo, var_FP_Sin,
+                                                                                 var_FP_Cosnoidal, var_FP_BorderX,
+                                                                                 var_FP_BorderY, var_FP_Identy,
+                                                                                 var_FP_ecualizate_histogram,
+                                                                                 var_FP_grey_filter,
+                                                                                 var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                                 var_FP_sigmoid_sine_filter))
     checkbutton_FP_Gamma = ttk.Checkbutton(ventana, text="Aplica FP_Gamma", variable=var_FP_Gamma, style="TCheckbutton",
-                                           command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo, var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX, var_FP_BorderY))
+                                           command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo,
+                                                                           var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX,
+                                                                           var_FP_BorderY, var_FP_Identy,
+                                                                           var_FP_ecualizate_histogram,
+                                                                           var_FP_grey_filter,
+                                                                           var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                           var_FP_sigmoid_sine_filter))
     checkbutton_FP_Logaritmo = ttk.Checkbutton(ventana, text="Aplica FP_Logaritmo", variable=var_FP_Logaritmo,
-                                               style="TCheckbutton", command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo, var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX, var_FP_BorderY))
+                                               style="TCheckbutton",
+                                               command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma,
+                                                                               var_FP_Logaritmo, var_FP_Sin,
+                                                                               var_FP_Cosnoidal, var_FP_BorderX,
+                                                                               var_FP_BorderY, var_FP_Identy,
+                                                                               var_FP_ecualizate_histogram,
+                                                                               var_FP_grey_filter,
+                                                                               var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                               var_FP_sigmoid_sine_filter))
     checkbutton_FP_Sin = ttk.Checkbutton(ventana, text="Aplica FP_Sin", variable=var_FP_Sin, style="TCheckbutton",
-                                         command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo, var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX, var_FP_BorderY))
+                                         command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo,
+                                                                         var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX,
+                                                                         var_FP_BorderY, var_FP_Identy,
+                                                                         var_FP_ecualizate_histogram,
+                                                                         var_FP_grey_filter,
+                                                                         var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                         var_FP_sigmoid_sine_filter))
     checkbutton_FP_Cosnoidal = ttk.Checkbutton(ventana, text="Aplica FP_Cosnoidal", variable=var_FP_Cosnoidal,
-                                               style="TCheckbutton", command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo, var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX, var_FP_BorderY))
+                                               style="TCheckbutton",
+                                               command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma,
+                                                                               var_FP_Logaritmo, var_FP_Sin,
+                                                                               var_FP_Cosnoidal, var_FP_BorderX,
+                                                                               var_FP_BorderY, var_FP_Identy,
+                                                                               var_FP_ecualizate_histogram,
+                                                                               var_FP_grey_filter,
+                                                                               var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                               var_FP_sigmoid_sine_filter))
     checkbutton_FP_BorderX = ttk.Checkbutton(ventana, text="Aplica FP_BorderX", variable=var_FP_BorderX,
-                                             style="TCheckbutton", command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo, var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX, var_FP_BorderY))
+                                             style="TCheckbutton",
+                                             command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo,
+                                                                             var_FP_Sin, var_FP_Cosnoidal,
+                                                                             var_FP_BorderX, var_FP_BorderY,
+                                                                             var_FP_Identy, var_FP_ecualizate_histogram,
+                                                                             var_FP_grey_filter,
+                                                                             var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                             var_FP_sigmoid_sine_filter))
     checkbutton_FP_BorderY = ttk.Checkbutton(ventana, text="Aplica FP_BorderY", variable=var_FP_BorderY,
-                                             style="TCheckbutton", command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo, var_FP_Sin, var_FP_Cosnoidal, var_FP_BorderX, var_FP_BorderY))
-
-
+                                             style="TCheckbutton",
+                                             command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma, var_FP_Logaritmo,
+                                                                             var_FP_Sin, var_FP_Cosnoidal,
+                                                                             var_FP_BorderX, var_FP_BorderY,
+                                                                             var_FP_Identy, var_FP_ecualizate_histogram,
+                                                                             var_FP_grey_filter,
+                                                                             var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                             var_FP_sigmoid_sine_filter))
+    checkbutton_FP_ecualizate_histogram = ttk.Checkbutton(ventana, text="Aplica ecualizate_histogram",
+                                                          variable=var_FP_ecualizate_histogram,
+                                                          style="TCheckbutton",
+                                                          command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma,
+                                                                                          var_FP_Logaritmo, var_FP_Sin,
+                                                                                          var_FP_Cosnoidal,
+                                                                                          var_FP_BorderX,
+                                                                                          var_FP_BorderY, var_FP_Identy,
+                                                                                          var_FP_ecualizate_histogram,
+                                                                                          var_FP_grey_filter,
+                                                                                          var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                                          var_FP_sigmoid_sine_filter))
+    checkbutton_FP_exponential_filter = ttk.Checkbutton(ventana, text="Aplica exponential_filter",
+                                                        variable=var_FP_exponential_filter,
+                                                        style="TCheckbutton",
+                                                        command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma,
+                                                                                        var_FP_Logaritmo, var_FP_Sin,
+                                                                                        var_FP_Cosnoidal,
+                                                                                        var_FP_BorderX, var_FP_BorderY,
+                                                                                        var_FP_Identy,
+                                                                                        var_FP_ecualizate_histogram,
+                                                                                        var_FP_grey_filter,
+                                                                                        var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                                        var_FP_sigmoid_sine_filter))
+    checkbutton_FP_sigmoid_sine_filter = ttk.Checkbutton(ventana, text="Aplica sigmoid_sine_filter",
+                                                         variable=var_FP_sigmoid_sine_filter,
+                                                         style="TCheckbutton",
+                                                         command=lambda: select_only_one(var_FP_Neg, var_FP_Gamma,
+                                                                                         var_FP_Logaritmo, var_FP_Sin,
+                                                                                         var_FP_Cosnoidal,
+                                                                                         var_FP_BorderX, var_FP_BorderY,
+                                                                                         var_FP_Identy,
+                                                                                         var_FP_ecualizate_histogram,
+                                                                                         var_FP_grey_filter,
+                                                                                         var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                                         var_FP_sigmoid_sine_filter))
+    checkbutton_FP_hyperbolic_tangent_sigmoid_filter = ttk.Checkbutton(ventana, text="Aplica tangent_sigmoid_filter",
+                                                                       variable=var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                       style="TCheckbutton",
+                                                                       command=lambda: select_only_one(var_FP_Neg,
+                                                                                                       var_FP_Gamma,
+                                                                                                       var_FP_Logaritmo,
+                                                                                                       var_FP_Sin,
+                                                                                                       var_FP_Cosnoidal,
+                                                                                                       var_FP_BorderX,
+                                                                                                       var_FP_BorderY,
+                                                                                                       var_FP_Identy,
+                                                                                                       var_FP_ecualizate_histogram,
+                                                                                                       var_FP_grey_filter,
+                                                                                                       var_FP_hyperbolic_tangent_sigmoid_filter,
+                                                                                                       var_FP_sigmoid_sine_filter))
 
     # Ubicar los checkbox en la ventana
-    checkbutton_FP_Neg.place(relx=0.5, rely=0.1, anchor="center")
-    checkbutton_FP_Gamma.place(relx=0.5, rely=0.2, anchor="center")
-    checkbutton_FP_Logaritmo.place(relx=0.5, rely=0.3, anchor="center")
-    checkbutton_FP_Sin.place(relx=0.5, rely=0.4, anchor="center")
-    checkbutton_FP_Cosnoidal.place(relx=0.5, rely=0.5, anchor="center")
-    checkbutton_FP_BorderX.place(relx=0.5, rely=0.6, anchor="center")
-    checkbutton_FP_BorderY.place(relx=0.5, rely=0.7, anchor="center")
+    checkbutton_FP_exponential_filter.place(relx=0.5, rely=0.1, anchor="center")
+    checkbutton_FP_sigmoid_sine_filter.place(relx=0.5, rely=0.2, anchor="center")
+    checkbutton_FP_hyperbolic_tangent_sigmoid_filter.place(relx=0.5, rely=0.3, anchor="center")
+    checkbutton_FP_ecualizate_histogram.place(relx=0.5, rely=0.4, anchor="center")
+    checkbutton_FP_Identy.place(relx=0.5, rely=0.5, anchor="center")
+    checkbutton_FP_Neg.place(relx=0.5, rely=0.6, anchor="center")
+    checkbutton_FP_grey_filter.place(relx=0.5, rely=0.7, anchor="center")
+    checkbutton_FP_Gamma.place(relx=0.5, rely=0.8, anchor="center")
+    checkbutton_FP_Logaritmo.place(relx=0.5, rely=0.9, anchor="center")
+    checkbutton_FP_Sin.place(relx=0.7, rely=0.9, anchor="center")
+    checkbutton_FP_Cosnoidal.place(relx=0.3, rely=0.9, anchor="center")
+    checkbutton_FP_BorderX.place(relx=0.7, rely=0.8, anchor="center")
+    checkbutton_FP_BorderY.place(relx=0.3, rely=0.8, anchor="center")
 
     # Cargar la imagen con PIL
     imagen = Image.open('lighthouse.bmp')
@@ -208,32 +352,45 @@ def read():
     boton_aplicar_filtros = tk.Button(ventana, text="Aplicar filtros")
 
     imagen_original = img
+    imagen_original2 = img1
 
     # Definir la función que se ejecutará cuando se presione el botón
     def aplicar_filtros():
 
         # Verificar si la checkbox de FP_Neg está activada
-        if var_FP_Neg.get():
+        if var_FP_Identy.get():
             # Aplicar el filtro
-            imagen_filtrada = FP_Neg(imagen_original)
+            imagen_filtrada = identity_filter(imagen_original)
+        elif var_FP_Neg.get():
+            # Aplicar el filtro
+            imagen_filtrada = negative_filter(imagen_original)
+        elif var_FP_grey_filter.get():
+            # Aplicar el filtro
+            imagen_filtrada = grey_filter(imagen_original)
         elif var_FP_Gamma.get():
             # Aplicar el filtro
-            imagen_filtrada = FP_Gamma(imagen_original, 0.5)
+            imagen_filtrada = gamma_filter(imagen_original, 0.5)
         elif var_FP_Logaritmo.get():
             # Aplicar el filtro
-            imagen_filtrada = FP_Logaritmo(imagen_original, 0.5)
+            imagen_filtrada = logarithmic_filter(imagen_original)
         elif var_FP_Sin.get():
             # Aplicar el filtro
-            imagen_filtrada = FP_Sin(imagen_original)
+            imagen_filtrada = sine_filter(imagen_original)
         elif var_FP_Cosnoidal.get():
             # Aplicar el filtro
-            imagen_filtrada = FP_Cosnoidal(imagen_original, 18)
+            imagen_filtrada = cosine_filter(imagen_original, 18)
         elif var_FP_BorderX.get():
             # Aplicar el filtro
-            imagen_filtrada = var_FP_BorderX(imagen_original)
+            imagen_filtrada = FP_BorderX(imagen_original2)
         elif var_FP_BorderY.get():
             # Aplicar el filtro
-            imagen_filtrada = var_FP_BorderY(imagen_original)
+            imagen_filtrada = FP_BorderY(imagen_original2)
+        elif var_FP_ecualizate_histogram.get():
+            # Aplicar el filtro
+            imagen_filtrada = ecualizate_histogram(imagen_original)
+        elif var_FP_hyperbolic_tangent_sigmoid_filter.get():
+            # Aplicar el filtro
+            imagen_filtrada = hyperbolic_tangent_sigmoid_filter(imagen_original)
         else:
             imagen_filtrada = imagen_original
 
@@ -266,7 +423,6 @@ def read():
     ventana.mainloop()
 
 
-
 def select_only_one(*vars_to_check):
     # Deseleccionar los otros checkboxes si el actual está seleccionado
     for var in vars_to_check:
@@ -275,7 +431,6 @@ def select_only_one(*vars_to_check):
                 if v != var:
                     v.set(False)
             break
-
 
 
 # main()
